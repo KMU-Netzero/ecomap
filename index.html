@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>국민대·정릉동 친환경 시설 지도</title>
+
+<!-- ───────────────────────────────────────────────────────────
+     ⚙️ 설정: 아래 3줄만 고치면 됩니다
+     ─────────────────────────────────────────────────────────── -->
+<script>
+const CONFIG = {
+  // 카카오디벨로퍼스 > 앱 설정 > 앱 키 > JavaScript 키
+  KAKAO_JS_KEY: "여기에_JavaScript_키_붙여넣기",
+
+  // 구글 스프레드시트 ID와 '시설조사표' 탭의 gid
+  SHEET_ID: "1aPuv-n9TAVRvD9o2cVHSIdS08q1Fud7qNdZ_PIiN8Hg",
+  SHEET_GID: "940449783",
+
+  // 지도에서 제외할 시설ID (예시/샘플 행)
+  EXCLUDE_IDS: ["CP-001"],
+};
+</script>
+<!-- ─────────────────────────────────────────────────────────── -->
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=여기에_JavaScript_키_붙여넣기&autoload=false" id="kakao-sdk"></script>
+
+<style>
+  :root {
+    --bg: #f7f8f6;
+    --panel: #ffffff;
+    --text: #1a1d1a;
+    --text-dim: #6b706b;
+    --border: #e2e5e1;
+    --accent: #2f7d4f;
+    --accent-soft: #eaf4ee;
+    --warn: #b4541a;
+    --warn-soft: #fdf0e6;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181a;
+      --panel: #1e2224;
+      --text: #e8ebe8;
+      --text-dim: #969c98;
+      --border: #2e3437;
+      --accent: #5fb37f;
+      --accent-soft: #1f2d25;
+      --warn: #e08a52;
+      --warn-soft: #2d231a;
+      --shadow: 0 1px 3px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181a; --panel: #1e2224; --text: #e8ebe8; --text-dim: #969c98;
+    --border: #2e3437; --accent: #5fb37f; --accent-soft: #1f2d25;
+    --warn: #e08a52; --warn-soft: #2d231a;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                 "Malgun Gothic", "Noto Sans KR", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { display: flex; flex-direction: column; height: 100dvh; }
+
+  header {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
+  header .meta { font-size: 12.5px; color: var(--text-dim); }
+  header .spacer { flex: 1 1 auto; }
+  .btn {
+    font: inherit; font-size: 13px; cursor: pointer;
+    padding: 6px 12px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  }
+  .btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+  .main { flex: 1 1 auto; display: flex; min-height: 0; }
+
+  /* ── 사이드바 ── */
+  .side {
+    width: 330px; flex: 0 0 330px; min-height: 0;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border); background: var(--panel);
+  }
+  .filters { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .filters h2 {
+    margin: 0 0 8px; font-size: 11.5px; font-weight: 650;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .chip {
+    font: inherit; font-size: 12.5px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+  .chip[aria-pressed="true"] {
+    background: var(--accent-soft); border-color: var(--accent); color: var(--text);
+    font-weight: 550;
+  }
+  .search {
+    width: 100%; font: inherit; font-size: 13px;
+    padding: 7px 10px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+
+  .list { flex: 1 1 auto; overflow-y: auto; }
+  .list-item {
+    padding: 11px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .list-item:hover { background: var(--accent-soft); }
+  .list-item.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  .list-item .name { font-weight: 550; font-size: 13.5px; }
+  .list-item .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .list-item .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+  .tag {
+    font-size: 11px; padding: 1.5px 7px; border-radius: 5px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .tag.type { color: var(--text); }
+  .tag.bad { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+
+  /* ── 지도 ── */
+  .map-wrap { flex: 1 1 auto; position: relative; min-width: 0; }
+  #map { position: absolute; inset: 0; background: var(--bg); }
+
+  .overlay-msg {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: var(--bg); z-index: 5;
+  }
+  .overlay-msg.show { display: flex; }
+  .overlay-card {
+    max-width: 440px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow);
+  }
+  .overlay-card h3 { margin: 0 0 8px; font-size: 15px; }
+  .overlay-card p { margin: 0 0 8px; color: var(--text-dim); font-size: 13px; }
+  .overlay-card code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    background: var(--bg); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border);
+  }
+
+  /* 지도 위 마커 라벨 */
+  .pin {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50% 50% 50% 6px;
+    transform: rotate(-45deg); border: 2px solid #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,.3); cursor: pointer;
+  }
+  .pin span { transform: rotate(45deg); font-size: 12px; line-height: 1; }
+
+  .iw {
+    min-width: 220px; max-width: 290px; padding: 12px 14px;
+    font-family: inherit; font-size: 13px; color: #1a1d1a;
+  }
+  .iw h4 { margin: 0 0 3px; font-size: 14px; }
+  .iw .iw-type { font-size: 12px; color: #2f7d4f; font-weight: 550; margin-bottom: 7px; }
+  .iw dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; }
+  .iw dt { color: #6b706b; white-space: nowrap; }
+  .iw dd { margin: 0; }
+  .iw .iw-memo {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e5e1;
+    font-size: 12px; color: #6b706b;
+  }
+
+  /* ── 점검 패널 ── */
+  .audit {
+    border-top: 1px solid var(--border); padding: 11px 16px;
+    font-size: 12.5px; background: var(--warn-soft); color: var(--warn);
+  }
+  .audit summary { cursor: pointer; font-weight: 550; }
+  .audit ul { margin: 7px 0 0; padding-left: 18px; line-height: 1.7; }
+  .audit[hidden] { display: none; }
+
+  @media (max-width: 760px) {
+    .main { flex-direction: column; }
+    .side { width: auto; flex: 0 0 auto; max-height: 48dvh; border-right: none; border-bottom: 1px solid var(--border); }
+    .map-wrap { flex: 1 1 auto; min-height: 240px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>국민대·정릉동 친환경 시설 지도</h1>
+    <span class="meta" id="count">불러오는 중…</span>
+    <span class="spacer"></span>
+    <button class="btn" id="reload">새로고침</button>
+  </header>
+
+  <div class="main">
+    <aside class="side">
+      <div class="filters">
+        <h2>구역</h2>
+        <div class="chips" id="area-chips"></div>
+        <h2>시설 유형</h2>
+        <div class="chips" id="type-chips"></div>
+        <input class="search" id="search" type="search" placeholder="시설명·위치 검색" autocomplete="off">
+      </div>
+      <div class="list" id="list"></div>
+      <details class="audit" id="audit" hidden>
+        <summary id="audit-summary"></summary>
+        <ul id="audit-list"></ul>
+      </details>
+    </aside>
+
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="overlay-msg" id="overlay">
+        <div class="overlay-card" id="overlay-card"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   1. 시트 열 순서 (A열부터)
+   시트의 열 순서를 바꾸면 이 숫자도 함께 바꿔야 합니다.
+   ============================================================ */
+const COL = {
+  id: 0, area: 1, subarea: 2, name: 3, type: 4,
+  lat: 5, lng: 6, where: 7, inout: 8, floor: 9,
+  photo1: 10, photo2: 11, count: 12, bins: 13, state: 14,
+  sign: 15, barrier: 16, openType: 17, openHours: 18, who: 19,
+  manager: 20, light: 21, demand: 22, dumping: 23, nearby: 24,
+  memo: 25, surveyor: 26, surveyedAt: 27, review: 28,
+};
+
+/* ============================================================
+   2. 시설 유형별 색상 그룹
+   ============================================================ */
+const TYPE_GROUPS = [
+  { label: "일반 분리수거", color: "#2f7d4f", types: ["일반쓰레기통","분리수거함(종합)","플라스틱 수거함","캔·고철 수거함","종이 수거함","유리 수거함"] },
+  { label: "특수 수거함",   color: "#c2762a", types: ["폐건전지 수거함","폐의류 수거함","소형가전 수거함","음식물쓰레기 수거함"] },
+  { label: "다회용기·텀블러", color: "#2b6cb0", types: ["텀블러 세척대","텀블러 할인","용기 할인","리필스테이션"] },
+  { label: "에너지·이동",   color: "#7a4fa3", types: ["태양광 시설","자전거 거치대"] },
+  { label: "기타",          color: "#6b706b", types: ["기타"] },
+];
+const BAD_STATES = ["오염", "파손", "넘침"];
+
+function colorForType(type) {
+  for (const g of TYPE_GROUPS) if (g.types.includes(type)) return g.color;
+  return "#6b706b";
+}
+function groupForType(type) {
+  for (const g of TYPE_GROUPS) if (g.types.includes(type)) return g.label;
+  return "기타";
+}
+
+/* ============================================================
+   3. CSV 파서 (따옴표 안의 쉼표·줄바꿈 처리)
+   ============================================================ */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* ============================================================
+   4. 상태
+   ============================================================ */
+let MAP = null, INFOWINDOW = null;
+let FACILITIES = [], SKIPPED = [];
+let activeAreas = new Set(), activeGroups = new Set(), query = "";
+let selectedId = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+/* ============================================================
+   5. 데이터 불러오기
+   ============================================================ */
+function sheetUrl() {
+  return "https://docs.google.com/spreadsheets/d/" + CONFIG.SHEET_ID +
+         "/gviz/tq?tqx=out:csv&gid=" + CONFIG.SHEET_GID +
+         "&headers=3&cachebust=" + Date.now();
+}
+
+async function loadData() {
+  const res = await fetch(sheetUrl());
+  if (!res.ok) throw new Error("시트를 불러오지 못했습니다 (HTTP " + res.status + ")");
+  const rows = parseCSV(await res.text());
+
+  const facilities = [], skipped = [];
+  for (const r of rows) {
+    const id = (r[COL.id] || "").trim();
+    if (!id) continue;
+    if (id.includes("시설ID")) continue;              // 헤더 행 방어
+    if (CONFIG.EXCLUDE_IDS.includes(id)) continue;    // 예시 행 제외
+
+    const lat = parseFloat(r[COL.lat]);
+    const lng = parseFloat(r[COL.lng]);
+    const name = (r[COL.name] || "").trim() || id;
+
+    // 좌표가 없거나 한국 범위를 벗어나면 지도에 찍지 않고 점검 목록으로
+    const ok = Number.isFinite(lat) && Number.isFinite(lng) &&
+               lat > 33 && lat < 39 && lng > 124 && lng < 132;
+    if (!ok) {
+      skipped.push({ id, name, where: (r[COL.where] || "").trim() });
+      continue;
+    }
+
+    const get = (k) => (r[COL[k]] || "").trim();
+    facilities.push({
+      id, name, lat, lng,
+      type: get("type") || "기타",
+      area: get("area") || "미분류",
+      subarea: get("subarea"),
+      where: get("where"),
+      inout: get("inout"), floor: get("floor"),
+      count: get("count"), bins: get("bins"),
+      state: get("state"), sign: get("sign"), barrier: get("barrier"),
+      openType: get("openType"), openHours: get("openHours"),
+      who: get("who"), manager: get("manager"),
+      memo: get("memo"), surveyor: get("surveyor"), surveyedAt: get("surveyedAt"),
+    });
+  }
+  FACILITIES = facilities;
+  SKIPPED = skipped;
+}
+
+/* ============================================================
+   6. 지도
+   ============================================================ */
+function initMap() {
+  MAP = new kakao.maps.Map($("map"), {
+    center: new kakao.maps.LatLng(37.6115, 126.9965), // 국민대 중심
+    level: 4,
+  });
+  MAP.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+  INFOWINDOW = new kakao.maps.InfoWindow({ removable: true, zIndex: 10 });
+}
+
+let overlays = [];
+function drawMarkers(items) {
+  overlays.forEach((o) => o.setMap(null));
+  overlays = [];
+  if (!MAP) return;
+
+  for (const f of items) {
+    const pos = new kakao.maps.LatLng(f.lat, f.lng);
+    const el = document.createElement("div");
+    el.className = "pin";
+    el.style.background = colorForType(f.type);
+    el.innerHTML = "<span></span>";
+    el.title = f.name;
+    el.addEventListener("click", (e) => { e.stopPropagation(); select(f.id, false); });
+
+    const ov = new kakao.maps.CustomOverlay({
+      position: pos, content: el, yAnchor: 1, clickable: true,
+    });
+    ov.setMap(MAP);
+    ov._fid = f.id;
+    ov._pos = pos;
+    overlays.push(ov);
+  }
+}
+
+function infoHTML(f) {
+  const rows = [
+    ["위치", [f.subarea, f.where].filter(Boolean).join(" · ")],
+    ["실내/실외", [f.inout, f.floor && f.floor + "층"].filter(Boolean).join(" ")],
+    ["수량", f.count && f.count + "개"],
+    ["분리 칸", f.bins],
+    ["상태", f.state],
+    ["안내표지", f.sign],
+    ["운영", [f.openType, f.openHours].filter(Boolean).join(" ")],
+    ["이용대상", f.who],
+    ["관리주체", f.manager],
+  ].filter(([, v]) => v);
+
+  return '<div class="iw">' +
+    "<h4>" + esc(f.name) + "</h4>" +
+    '<div class="iw-type">' + esc(f.type) + "</div>" +
+    "<dl>" + rows.map(([k, v]) =>
+      "<dt>" + esc(k) + "</dt><dd>" + esc(v) + "</dd>").join("") + "</dl>" +
+    (f.memo ? '<div class="iw-memo">' + esc(f.memo) + "</div>" : "") +
+    (f.surveyor ? '<div class="iw-memo">조사: ' + esc(f.surveyor) +
+      (f.surveyedAt ? " · " + esc(f.surveyedAt) : "") + "</div>" : "") +
+    "</div>";
+}
+
+function select(id, pan) {
+  selectedId = id;
+  const f = FACILITIES.find((x) => x.id === id);
+  if (!f || !MAP) { renderList(); return; }
+  const pos = new kakao.maps.LatLng(f.lat, f.lng);
+  INFOWINDOW.setContent(infoHTML(f));
+  INFOWINDOW.setPosition(pos);
+  INFOWINDOW.open(MAP);
+  if (pan) MAP.panTo(pos);
+  renderList();
+  const node = document.querySelector('.list-item[data-id="' + CSS.escape(id) + '"]');
+  if (node) node.scrollIntoView({ block: "nearest" });
+}
+
+/* ============================================================
+   7. 필터 & 목록
+   ============================================================ */
+function visible() {
+  const q = query.trim().toLowerCase();
+  return FACILITIES.filter((f) => {
+    if (activeAreas.size && !activeAreas.has(f.area)) return false;
+    if (activeGroups.size && !activeGroups.has(groupForType(f.type))) return false;
+    if (q) {
+      const hay = [f.name, f.subarea, f.where, f.type, f.id].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderChips() {
+  const areas = [...new Set(FACILITIES.map((f) => f.area))].sort();
+  $("area-chips").innerHTML = areas.map((a) =>
+    '<button class="chip" data-area="' + esc(a) + '" aria-pressed="false">' +
+    esc(a) + "</button>").join("");
+
+  const present = new Set(FACILITIES.map((f) => groupForType(f.type)));
+  $("type-chips").innerHTML = TYPE_GROUPS.filter((g) => present.has(g.label)).map((g) =>
+    '<button class="chip" data-group="' + esc(g.label) + '" aria-pressed="false">' +
+    '<i class="dot" style="background:' + g.color + '"></i>' + esc(g.label) +
+    "</button>").join("");
+
+  $("area-chips").onclick = (e) => {
+    const b = e.target.closest("[data-area]"); if (!b) return;
+    toggle(activeAreas, b.dataset.area, b); refresh();
+  };
+  $("type-chips").onclick = (e) => {
+    const b = e.target.closest("[data-group]"); if (!b) return;
+    toggle(activeGroups, b.dataset.group, b); refresh();
+  };
+}
+function toggle(set, key, btn) {
+  if (set.has(key)) { set.delete(key); btn.setAttribute("aria-pressed", "false"); }
+  else { set.add(key); btn.setAttribute("aria-pressed", "true"); }
+}
+
+function renderList() {
+  const items = visible();
+  $("list").innerHTML = items.length
+    ? items.map((f) => {
+        const bad = BAD_STATES.includes(f.state);
+        return '<div class="list-item' + (f.id === selectedId ? " active" : "") +
+          '" data-id="' + esc(f.id) + '">' +
+          '<div class="name">' + esc(f.name) + "</div>" +
+          '<div class="sub">' + esc([f.subarea, f.where].filter(Boolean).join(" · ")) + "</div>" +
+          '<div class="tags">' +
+            '<span class="tag type">' + esc(f.type) + "</span>" +
+            (f.state ? '<span class="tag' + (bad ? " bad" : "") + '">' + esc(f.state) + "</span>" : "") +
+            (f.openHours ? '<span class="tag">' + esc(f.openHours) + "</span>" : "") +
+          "</div></div>";
+      }).join("")
+    : '<div class="list-item" style="cursor:default;color:var(--text-dim)">조건에 맞는 시설이 없습니다.</div>';
+}
+
+function renderCount() {
+  const n = visible().length;
+  const total = FACILITIES.length;
+  $("count").textContent = n === total
+    ? total + "곳"
+    : n + "곳 / 전체 " + total + "곳";
+}
+
+function renderAudit() {
+  const el = $("audit");
+  if (!SKIPPED.length) { el.hidden = true; return; }
+  el.hidden = false;
+  $("audit-summary").textContent = "좌표가 없어 지도에 표시되지 않은 시설 " + SKIPPED.length + "곳";
+  $("audit-list").innerHTML = SKIPPED.map((s) =>
+    "<li>" + esc(s.id) + " — " + esc(s.name) +
+    (s.where ? " (" + esc(s.where) + ")" : "") + "</li>").join("");
+}
+
+function refresh() {
+  const items = visible();
+  drawMarkers(items);
+  renderList();
+  renderCount();
+  if (selectedId && !items.some((f) => f.id === selectedId)) {
+    selectedId = null;
+    if (INFOWINDOW) INFOWINDOW.close();
+  }
+}
+
+/* ============================================================
+   8. 시작
+   ============================================================ */
+function showOverlay(html) {
+  $("overlay-card").innerHTML = html;
+  $("overlay").classList.add("show");
+}
+
+async function start() {
+  // 키를 안 넣었으면 안내만 띄우고 목록은 그대로 보여줍니다
+  const keyMissing = !CONFIG.KAKAO_JS_KEY || CONFIG.KAKAO_JS_KEY.includes("붙여넣기");
+
+  try {
+    await loadData();
+  } catch (err) {
+    $("count").textContent = "불러오기 실패";
+    showOverlay("<h3>시트를 불러오지 못했습니다</h3><p>" + esc(err.message) +
+      "</p><p>스프레드시트 공유 설정이 <code>링크가 있는 모든 사용자 · 뷰어</code>인지 확인해 주세요.</p>");
+    return;
+  }
+
+  renderChips();
+  renderList();
+  renderCount();
+  renderAudit();
+
+  $("list").onclick = (e) => {
+    const n = e.target.closest("[data-id]"); if (!n) return;
+    select(n.dataset.id, true);
+  };
+  $("search").oninput = (e) => { query = e.target.value; refresh(); };
+  $("reload").onclick = async () => {
+    $("count").textContent = "불러오는 중…";
+    try { await loadData(); renderChips(); renderAudit(); refresh(); }
+    catch (err) { $("count").textContent = "불러오기 실패"; }
+  };
+
+  if (keyMissing) {
+    showOverlay(
+      "<h3>카카오맵 JavaScript 키가 필요합니다</h3>" +
+      "<p>시트는 정상적으로 읽혔습니다. 왼쪽 목록에 시설 " + FACILITIES.length + "곳이 보입니다.</p>" +
+      "<p>지도를 띄우려면 <code>index.html</code> 위쪽 <code>CONFIG.KAKAO_JS_KEY</code>와 " +
+      "<code>&lt;script src=…appkey=…&gt;</code> 두 곳에 같은 키를 넣어 주세요.</p>");
+    return;
+  }
+
+  kakao.maps.load(() => {
+    initMap();
+    refresh();
+    kakao.maps.event.addListener(MAP, "click", () => INFOWINDOW.close());
+  });
+}
+
+start();
+</script>
+</body>
+</html>
