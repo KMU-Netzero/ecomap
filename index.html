@@ -236,11 +236,11 @@ const CONFIG = {
    ============================================================ */
 const COL = {
   id: 0, area: 1, subarea: 2, name: 3, type: 4,
-  lat: 5, lng: 6, where: 7, inout: 8, floor: 9,
-  photo1: 10, photo2: 11, count: 12, bins: 13, state: 14,
-  sign: 15, barrier: 16, openType: 17, openHours: 18, who: 19,
-  manager: 20, light: 21, demand: 22, dumping: 23, nearby: 24,
-  memo: 25, surveyor: 26, surveyedAt: 27, review: 28,
+  roadAddress: 5, lat: 6, lng: 7, where: 8, inout: 9, floor: 10,
+  photo1: 11, photo2: 12, count: 13, bins: 14, state: 15,
+  sign: 16, barrier: 17, openType: 18, openHours: 19, who: 20,
+  manager: 21, light: 22, demand: 23, dumping: 24, nearby: 25,
+  memo: 26, surveyor: 27, surveyedAt: 28, review: 29,
 };
 
 /* ============================================================
@@ -337,6 +337,7 @@ async function loadData() {
       type: get("type") || "기타",
       area: get("area") || "미분류",
       subarea: get("subarea"),
+      roadAddress: get("roadAddress"),
       where: get("where"),
       inout: get("inout"), floor: get("floor"),
       count: get("count"), bins: get("bins"),
@@ -390,6 +391,7 @@ function drawMarkers(items) {
 function infoHTML(f) {
   const rows = [
     ["위치", [f.subarea, f.where].filter(Boolean).join(" · ")],
+    ["도로명주소", f.roadAddress],
     ["실내/실외", [f.inout, f.floor && f.floor + "층"].filter(Boolean).join(" ")],
     ["수량", f.count && f.count + "개"],
     ["분리 칸", f.bins],
