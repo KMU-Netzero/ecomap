@@ -19,6 +19,9 @@ const CONFIG = {
 
   // 지도에서 제외할 시설ID (예시/샘플 행)
   EXCLUDE_IDS: ["CP-001"],
+
+  // 사진 파일이 들어있는 폴더 (GitHub 저장소 안, index.html과 같은 위치 기준)
+  PHOTO_BASE_URL: "photos/",
 };
 </script>
 <!-- ─────────────────────────────────────────────────────────── -->
@@ -178,6 +181,20 @@ const CONFIG = {
     margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e5e1;
     font-size: 12px; color: #6b706b;
   }
+  .iw-photos { display: flex; gap: 5px; margin-bottom: 8px; }
+  .iw-photo {
+    width: 72px; height: 72px; object-fit: cover; border-radius: 6px;
+    cursor: zoom-in; border: 1px solid #e2e5e1; background: #f7f8f6;
+  }
+
+  /* 사진 원본 보기 레이어 */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 100; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,.82); cursor: zoom-out; padding: 24px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
 
   /* ── 점검 패널 ── */
   .audit {
@@ -286,6 +303,12 @@ function parseCSV(text) {
   return rows;
 }
 
+// 시트의 파일명 텍스트를 실제 사진 경로로 변환. 빈 칸이면 null.
+function photoUrl(filename) {
+  if (!filename) return null;
+  return CONFIG.PHOTO_BASE_URL + filename.split("/").map(encodeURIComponent).join("/");
+}
+
 /* ============================================================
    4. 상태
    ============================================================ */
@@ -345,6 +368,7 @@ async function loadData() {
       openType: get("openType"), openHours: get("openHours"),
       who: get("who"), manager: get("manager"),
       memo: get("memo"), surveyor: get("surveyor"), surveyedAt: get("surveyedAt"),
+      photo1: photoUrl(get("photo1")), photo2: photoUrl(get("photo2")),
     });
   }
   FACILITIES = facilities;
@@ -402,15 +426,45 @@ function infoHTML(f) {
     ["관리주체", f.manager],
   ].filter(([, v]) => v);
 
+  const photos = [f.photo1, f.photo2].filter(Boolean);
+
   return '<div class="iw">' +
     "<h4>" + esc(f.name) + "</h4>" +
     '<div class="iw-type">' + esc(f.type) + "</div>" +
+    (photos.length
+      ? '<div class="iw-photos">' + photos.map((u) =>
+          '<img class="iw-photo" src="' + esc(u) + '" data-full="' + esc(u) +
+          '" loading="lazy" alt="' + esc(f.name) + ' 사진">').join("") + "</div>"
+      : "") +
     "<dl>" + rows.map(([k, v]) =>
       "<dt>" + esc(k) + "</dt><dd>" + esc(v) + "</dd>").join("") + "</dl>" +
     (f.memo ? '<div class="iw-memo">' + esc(f.memo) + "</div>" : "") +
     (f.surveyor ? '<div class="iw-memo">조사: ' + esc(f.surveyor) +
       (f.surveyedAt ? " · " + esc(f.surveyedAt) : "") + "</div>" : "") +
     "</div>";
+}
+
+// 정보창 안의 사진 클릭 → 원본 크기로 보기 (정보창은 매번 새로 그려지므로 이벤트 위임 방식 사용)
+document.addEventListener("click", (e) => {
+  const img = e.target.closest(".iw-photo");
+  if (img) { openLightbox(img.dataset.full); return; }
+  if (e.target.closest(".lightbox")) closeLightbox();
+});
+function openLightbox(url) {
+  let box = document.getElementById("lightbox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "lightbox";
+    box.className = "lightbox";
+    box.innerHTML = '<img>';
+    document.body.appendChild(box);
+  }
+  box.querySelector("img").src = url;
+  box.classList.add("show");
+}
+function closeLightbox() {
+  const box = document.getElementById("lightbox");
+  if (box) box.classList.remove("show");
 }
 
 function select(id, pan) {
